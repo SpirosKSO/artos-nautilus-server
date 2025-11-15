@@ -1,0 +1,43 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile*
+docker-compose.yml
+
+# Enclave build artifacts
+*.eif
+*.pem
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+dist/
+
+# Move workspace
+move/target/
+move/build/
+
+# Documentation
+*.md
+docs/

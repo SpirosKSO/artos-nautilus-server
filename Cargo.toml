@@ -1,13 +1,13 @@
 [workspace]
 members = [
-  "src/aws",
-  "src/init",
-  "src/system"
-]
-
-exclude = [
   "src/nautilus-server"
 ]
 
-# Set default resolver to version 2
-resolver = "2" 
+# Remove or comment out unused modules
+# exclude = [
+#   "src/aws",
+#   "src/init", 
+#   "src/system"
+# ]
+
+resolver = "2"

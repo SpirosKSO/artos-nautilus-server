@@ -57,7 +57,7 @@ COPY . .
 RUN cargo build --workspace --locked --no-default-features --release --target x86_64-unknown-linux-musl
 
 WORKDIR /src/nautilus-server
-ARG ENCLAVE_APP
+ARG ENCLAVE_APP=orders
 ENV RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static -C target-cpu=x86-64"
 RUN cargo build --locked --no-default-features --features $ENCLAVE_APP --release --target x86_64-unknown-linux-musl
 
@@ -71,7 +71,7 @@ COPY --from=core-musl . initramfs
 COPY --from=core-ca-certificates /etc/ssl/certs initramfs
 COPY --from=core-busybox /bin/sh initramfs/sh
 COPY --from=user-jq /bin/jq initramfs
-COPY --from=user-socat /bin/socat . initramfs
+COPY --from=user-socat /bin/socat initramfs
 RUN cp /target/${TARGET}/release/init initramfs
 RUN cp /src/nautilus-server/target/${TARGET}/release/nautilus-server initramfs
 RUN cp /src/nautilus-server/traffic_forwarder.py initramfs/

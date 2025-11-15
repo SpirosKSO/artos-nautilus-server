@@ -1,0 +1,11 @@
+[package]
+name = "artos_escrow"
+version = "0.0.1"
+published-at = "0x0"
+edition = "2024"
+
+[addresses]
+artos = "0x0"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", rev = "be94dd3", subdir = "crates/sui-framework/packages/sui-framework" }
