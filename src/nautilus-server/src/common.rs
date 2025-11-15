@@ -13,6 +13,8 @@ use nsm_api::api::{Request as NsmRequest, Response as NsmResponse};
 use nsm_api::driver;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "nitro")]
 use serde_bytes::ByteBuf;
 use serde_repr::Deserialize_repr;
 use serde_repr::Serialize_repr;

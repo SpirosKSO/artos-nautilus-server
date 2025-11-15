@@ -86,7 +86,15 @@ async fn main() -> Result<()> {
         .with_state(state)
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3100").await?;  
+    // ✅ FIX: Read PORT from environment (Railway sets this dynamically)
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "3100".to_string())
+        .parse::<u16>()
+        .expect("PORT must be a valid number");
+    
+    let addr = format!("0.0.0.0:{}", port);
+    
+    let listener = tokio::net::TcpListener::bind(&addr).await?;  
     info!(addr = %listener.local_addr().unwrap(), "Server listening");
     info!("📋 Routes registered:");
     info!("  GET  /");
