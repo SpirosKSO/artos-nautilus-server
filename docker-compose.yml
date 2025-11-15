@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  nautilus-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3101:3100" # Map host port 3101 to container port 3100
+    environment:
+      - RUST_LOG=info
+    container_name: nautilus-server-dev

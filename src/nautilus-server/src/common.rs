@@ -7,7 +7,9 @@ use axum::{extract::State, Json};
 use fastcrypto::traits::Signer;
 use fastcrypto::{encoding::Encoding, traits::ToFromBytes};
 use fastcrypto::{encoding::Hex, traits::KeyPair as FcKeyPair};
+#[cfg(feature = "nitro")]
 use nsm_api::api::{Request as NsmRequest, Response as NsmResponse};
+#[cfg(feature = "nitro")]
 use nsm_api::driver;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -93,6 +95,7 @@ pub struct GetAttestationResponse {
 
 /// Endpoint that returns an attestation committed
 /// to the enclave's public key.
+#[cfg(feature = "nitro")]
 pub async fn get_attestation(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<GetAttestationResponse>, EnclaveError> {
@@ -123,6 +126,17 @@ pub async fn get_attestation(
             ))
         }
     }
+}
+
+/// Stub for non-nitro builds
+#[cfg(not(feature = "nitro"))]
+pub async fn get_attestation(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<GetAttestationResponse>, EnclaveError> {
+    info!("get_attestation called (stub - nitro feature not enabled)");
+    Err(EnclaveError::GenericError(
+        "attestation not available in non-nitro builds".to_string(),
+    ))
 }
 
 /// Health check response.
