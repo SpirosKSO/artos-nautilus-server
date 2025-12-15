@@ -3,7 +3,28 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-const DOMAIN_TAG: &[u8] = b"nautilus/order/v1";
+// ============================================
+// ✅ INTENT SCOPES (must match Move contract)
+// ============================================
+const ORDER_INTENT_INITIATE: u8 = 0;
+const ORDER_INTENT_DEPOSIT: u8 = 1;
+const ORDER_INTENT_RELEASE: u8 = 2;
+const ORDER_INTENT_REFUND: u8 = 3;
+
+// ============================================
+// ✅ ACTION/STATUS CONSTANTS (for BCS serialization)
+// Must match Move contract for proper signature verification
+// ============================================
+const ACTION_INITIATE: u8 = 0;
+const ACTION_DEPOSIT: u8 = 1;
+const ACTION_RELEASE: u8 = 2;
+const ACTION_REFUND: u8 = 3;
+
+const STATUS_PENDING: u8 = 0;
+const STATUS_ESCROWED: u8 = 1;
+const STATUS_RELEASED: u8 = 2;
+const STATUS_REFUNDED: u8 = 3;
+const STATUS_REJECTED: u8 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -14,6 +35,26 @@ pub enum OrderAction {
 	Refund,
 }
 
+impl OrderAction {
+	fn to_u8(&self) -> u8 {
+		match self {
+			OrderAction::Initiate => ACTION_INITIATE,
+			OrderAction::Deposit => ACTION_DEPOSIT,
+			OrderAction::Release => ACTION_RELEASE,
+			OrderAction::Refund => ACTION_REFUND,
+		}
+	}
+	
+	fn to_intent(&self) -> u8 {
+		match self {
+			OrderAction::Initiate => ORDER_INTENT_INITIATE,
+			OrderAction::Deposit => ORDER_INTENT_DEPOSIT,
+			OrderAction::Release => ORDER_INTENT_RELEASE,
+			OrderAction::Refund => ORDER_INTENT_REFUND,
+		}
+	}
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderStatus {
@@ -22,6 +63,18 @@ pub enum OrderStatus {
 	Released,
 	Refunded,
 	Rejected,
+}
+
+impl OrderStatus {
+	fn to_u8(&self) -> u8 {
+		match self {
+			OrderStatus::Pending => STATUS_PENDING,
+			OrderStatus::Escrowed => STATUS_ESCROWED,
+			OrderStatus::Released => STATUS_RELEASED,
+			OrderStatus::Refunded => STATUS_REFUNDED,
+			OrderStatus::Rejected => STATUS_REJECTED,
+		}
+	}
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,10 +103,50 @@ pub struct SignableOrderResponse {
 	pub notes: Option<String>,        // reason for rejection or info
 }
 
+/// BCS-serializable struct that matches the Move SignableOrderResponse exactly
+/// This is what gets wrapped in IntentMessage for signing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BcsSignableOrderResponse {
+	version: u8,
+	order_id: Vec<u8>,
+	action: u8,
+	status: u8,
+	amount: u64,
+	currency: Vec<u8>,
+	server_timestamp_ms: u64,
+	escrow_tx_id: Option<Vec<u8>>,
+	notes: Option<Vec<u8>>,
+}
+
+impl From<&SignableOrderResponse> for BcsSignableOrderResponse {
+	fn from(resp: &SignableOrderResponse) -> Self {
+		BcsSignableOrderResponse {
+			version: resp.version,
+			order_id: resp.order_id.as_bytes().to_vec(),
+			action: resp.action.to_u8(),
+			status: resp.status.to_u8(),
+			amount: resp.amount,
+			currency: resp.currency.as_bytes().to_vec(),
+			server_timestamp_ms: resp.server_timestamp_ms,
+			escrow_tx_id: resp.escrow_tx_id.as_ref().map(|s| s.as_bytes().to_vec()),
+			notes: resp.notes.as_ref().map(|s| s.as_bytes().to_vec()),
+		}
+	}
+}
+
+/// IntentMessage wrapper - matches Move's IntentMessage<P> struct exactly
+/// BCS serialization: intent (u8) + timestamp_ms (u64) + payload (BcsSignableOrderResponse)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct IntentMessage {
+	intent: u8,
+	timestamp_ms: u64,
+	payload: BcsSignableOrderResponse,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignedOrderResponse {
 	pub response: SignableOrderResponse,
-	pub signature: String,          // base64(ed25519 signature over DOMAIN_TAG || BCS(response))
+	pub signature: String,          // base64(ed25519 signature over BCS(IntentMessage))
 	pub public_key: String,         // base64(ed25519 public key), also emitted via health
 	pub scheme: String,             // "ed25519"
 }
@@ -61,14 +154,17 @@ pub struct SignedOrderResponse {
 // Import crypto from the same orders module
 use super::crypto;
 
+/// Creates the signing message that matches Move's verify_signature expectation
+/// Format: BCS(IntentMessage { intent, timestamp_ms, payload })
 fn signing_message(resp: &SignableOrderResponse) -> Vec<u8> {
-	let mut m = Vec::with_capacity(DOMAIN_TAG.len() + 256);
-	m.extend_from_slice(DOMAIN_TAG);
-	m.extend(
-		bcs::to_bytes(resp)
-			.expect("BCS serialization should not fail for canonical structs"),
-	);
-	m
+	let bcs_payload = BcsSignableOrderResponse::from(resp);
+	let intent_msg = IntentMessage {
+		intent: resp.action.to_intent(),
+		timestamp_ms: resp.server_timestamp_ms,
+		payload: bcs_payload,
+	};
+	bcs::to_bytes(&intent_msg)
+		.expect("BCS serialization should not fail for canonical structs")
 }
 
 pub fn make_response(req: &OrderRequest) -> SignableOrderResponse {
