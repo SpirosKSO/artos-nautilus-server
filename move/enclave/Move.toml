@@ -1,6 +1,7 @@
 [package]
 name = "enclave"
 edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+published-at = "0xe796d3cccaeaa5fd615bd1ac2cc02c37077471b201722f66bb131712a86f4ab6"
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
@@ -17,7 +18,7 @@ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # Override = { local = "../conflicting/version", override = true }
 
 [addresses]
-enclave = "0x0"
+enclave = "0xe796d3cccaeaa5fd615bd1ac2cc02c37077471b201722f66bb131712a86f4ab6"
 
 # Named addresses will be accessible in Move as `@name`. They're also exported:
 # for example, `std = "0x1"` is exported by the Standard Library.
