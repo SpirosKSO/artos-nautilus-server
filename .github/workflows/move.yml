@@ -25,7 +25,6 @@ jobs:
         with:
           config: |-
             mystenlabs/sui:
-              tag: v1.62.0
               platform: ubuntu
               arch: x86_64
               extension-matching: true
