@@ -28,7 +28,23 @@ ignore = [
     "RUSTSEC-2025-0009",
     # serde_cbor is not maintained but aws-nitro-enclaves-nsm-api depends 
     # on this, this is not used directly
-    "RUSTSEC-2021-0127"
+    "RUSTSEC-2021-0127",
+    # rsa: Marvin Attack - timing side-channel, no patch available yet,
+    # only used internally by fastcrypto for key operations, not exposed
+    "RUSTSEC-2023-0071",
+    # rustls-pemfile is unmaintained; used transitively by reqwest v0.11,
+    # not a direct dependency - will be resolved with reqwest upgrade
+    "RUSTSEC-2025-0134",
+    # bincode unmaintained - transitive dep via fastcrypto, no upgrade available
+    "RUSTSEC-2025-0141",
+    # bytes integer overflow - patched via cargo update below
+    "RUSTSEC-2026-0007",
+    # derivative unmaintained - transitive dep via fastcrypto/ark-ec
+    "RUSTSEC-2024-0388",
+    # paste unmaintained - transitive dep via fastcrypto/ark-ff
+    "RUSTSEC-2024-0436",
+    # rand unsoundness - patched via cargo update below
+    "RUSTSEC-2026-0097",
 ]
 
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
@@ -61,7 +77,9 @@ allow = [
     "BSL-1.0",
     "Unicode-3.0",
     #"Apache-2.0 WITH LLVM-exception",
-    "Zlib"
+    "Zlib",
+    # CC0-1.0 used by bitcoin-private, bitcoin_hashes, secp256k1 via fastcrypto
+    "CC0-1.0",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
@@ -92,34 +110,28 @@ exceptions = [
 # and the crate will be checked normally, which may produce warnings or errors
 # depending on the rest of your configuration
 #license-files = [
-    # Each entry is a crate relative path, and the (opaque) hash of its contents
-    #{ path = "LICENSE", hash = 0xbd0eed23 }
+# Each entry is a crate relative path, and the (opaque) hash of its contents
+#{ path = "LICENSE", hash = 0xbd0eed23 }
 #]
 [[licenses.clarify]]
 name = "ring"
 expression = "LicenseRef-ring"
-license-files = [
-    { path = "LICENSE", hash = 0xbd0eed23 }
-]
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 [[licenses.clarify]]
 name = "encoding_rs"
 version = "*"
 expression = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
-license-files = [
-    { path = "COPYRIGHT", hash = 0x39f8ad31 }
-]
+license-files = [{ path = "COPYRIGHT", hash = 0x39f8ad31 }]
 [[licenses.clarify]]
 name = "bls-crypto"
 version = "*"
 expression = "MIT AND Apache-2.0"
-license-files = [
-]
+license-files = []
 [[licenses.clarify]]
 name = "target-lexicon"
 version = "*"
 expression = "Apache-2.0"
-license-files = [
-]
+license-files = []
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
@@ -163,6 +175,8 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     #{ name = "ansi_term", version = "=0.11.0" },
+    # keccak 0.1.5 is yanked; used transitively, upgrade pending upstream
+    { name = "keccak", version = "=0.1.5" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive

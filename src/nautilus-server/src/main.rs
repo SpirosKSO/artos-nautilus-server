@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use axum::{routing::{get, post}, Json, Router};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use nautilus_server::common::{get_attestation, health_check};
 use nautilus_server::AppState;
@@ -27,7 +30,7 @@ async fn main() -> Result<()> {
             .compact()
             .init();
     }
-    
+
     #[cfg(not(debug_assertions))]
     {
         // Production: JSON logs for Railway/monitoring tools
@@ -45,7 +48,7 @@ async fn main() -> Result<()> {
     // In orders mode, don't require API_KEY at runtime.
     #[cfg(feature = "orders")]
     let api_key = String::new();
-    
+
     // Otherwise require API_KEY to be set.
     #[cfg(not(feature = "orders"))]
     let api_key = std::env::var("API_KEY").expect("API_KEY must be set");
@@ -81,7 +84,7 @@ async fn main() -> Result<()> {
         .route("/", get(ping))
         .route("/get_attestation", get(get_attestation))
         .route("/health_check", get(health_check))
-        .route("/orders/process", post(process_order_http))  
+        .route("/orders/process", post(process_order_http))
         .route("/orders/health", get(orders_health))
         .with_state(state)
         .layer(cors);
@@ -91,10 +94,10 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "3100".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid number");
-    
+
     let addr = format!("0.0.0.0:{}", port);
-    
-    let listener = tokio::net::TcpListener::bind(&addr).await?;  
+
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!(addr = %listener.local_addr().unwrap(), "Server listening");
     info!("📋 Routes registered:");
     info!("  GET  /");
@@ -103,7 +106,7 @@ async fn main() -> Result<()> {
     info!("  POST /orders/process");
     info!("  GET  /orders/health");
     info!("🎯 Server ready to accept requests!");
-    
+
     axum::serve(listener, app.into_make_service())
         .await
         .map_err(|e| anyhow::anyhow!("Server error: {}", e))
@@ -116,7 +119,9 @@ async fn ping() -> &'static str {
 
 // HTTP handlers for orders feature
 #[cfg(feature = "orders")]
-async fn process_order_http(Json(req): Json<orders::OrderRequest>) -> Json<orders::SignedOrderResponse> {
+async fn process_order_http(
+    Json(req): Json<orders::OrderRequest>,
+) -> Json<orders::SignedOrderResponse> {
     info!(
         order_id = %req.order_id,
         action = ?req.action,

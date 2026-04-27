@@ -86,13 +86,13 @@ jobs:
       - name: rustfmt
         working-directory: src/nautilus-server
         run: cargo fmt --all -- --check
-  
+
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: EmbarkStudios/cargo-deny-action@v1
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
           arguments: --all-features

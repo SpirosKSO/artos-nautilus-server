@@ -28,7 +28,7 @@ jobs:
               platform: ubuntu
               arch: x86_64
               extension-matching: true
-            
+
       - name: Run move tests
         run: |
           for dir in move/*; do
