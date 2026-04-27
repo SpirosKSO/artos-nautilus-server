@@ -64,10 +64,10 @@ jobs:
 
   clippy:
     name: cargo clippy (${{ matrix.feature }})
-    runs-on: ubuntu-ghcloud
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        feature: [weather-example, twitter-example, seal-example]
+        feature: [orders]
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
       - name: Install correct Rust toolchain
