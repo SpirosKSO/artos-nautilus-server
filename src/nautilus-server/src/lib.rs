@@ -14,13 +14,12 @@ use std::fmt;
 pub mod orders {
     pub mod crypto;
     pub mod order;
-    
-    pub use order::{
-        OrderAction, OrderRequest, OrderStatus, 
-        SignableOrderResponse, SignedOrderResponse,
-        make_response, sign_response,
-    };
+
     pub use crypto::{ensure_initialized, public_key_base64, sign};
+    pub use order::{
+        make_response, sign_response, sign_response_with_v2, OrderAction, OrderRequest,
+        OrderStatus, OrderV2Fields, SignableOrderResponse, SignedOrderResponse,
+    };
 }
 
 pub mod common;
@@ -39,11 +38,11 @@ impl IntoResponse for EnclaveError {
         let (status, error_message) = match self {
             EnclaveError::GenericError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
-        
+
         let body = Json(json!({
             "error": error_message,
         }));
-        
+
         (status, body).into_response()
     }
 }

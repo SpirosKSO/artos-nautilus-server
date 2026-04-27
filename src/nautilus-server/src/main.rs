@@ -126,8 +126,16 @@ async fn process_order_http(Json(req): Json<orders::OrderRequest>) -> Json<order
     );
     let resp = orders::make_response(&req);
     info!(order_id = %resp.order_id, status = ?resp.status, "Generated response");
-    let signed = orders::sign_response(&resp);
-    info!(order_id = %signed.response.order_id, public_key = %signed.public_key, "Signed response");
+    // V2 shadow mode: when the request opts in, sign both V1 and V2 with the
+    // same enclave master key. Backend stores both signatures and verifies
+    // both independently. V2 fields default to None for backwards compat.
+    let signed = orders::sign_response_with_v2(&resp, req.v2.as_ref());
+    info!(
+        order_id = %signed.response.order_id,
+        public_key = %signed.public_key,
+        v2_signed = signed.signature_v2.is_some(),
+        "Signed response"
+    );
     Json(signed)
 }
 
