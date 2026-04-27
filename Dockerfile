@@ -1,5 +1,5 @@
 # Multi-stage build for minimal production image
-FROM rust:1.87-bullseye AS builder
+FROM rust:1.88-bullseye AS builder
 
 WORKDIR /app
 
