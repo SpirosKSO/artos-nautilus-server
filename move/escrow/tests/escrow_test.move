@@ -1,116 +1,199 @@
-address 0x0 {
-module escrow_test {
-    use artos::escrow;
-    use 0x2::object;
-    use 0x2::coin::{Self as coin, Coin};
-    use 0x2::sui::SUI;
-    use 0x1::option;
-    use 0x2::tx_context;
-    use std::vector;
+#[test_only]
+module artos::escrow_tests;
 
-    /// Helper: create a dummy programmable account
-    fun dummy_pa(): escrow::ProgrammableAccount {
-        escrow::ProgrammableAccount {}
-    }
+use artos::escrow::{Self, OrderEscrow, ReleaseCap, RefundCap, AdminCap, ProgrammableAccount};
+use sui::clock;
+use sui::coin;
+use sui::sui::SUI;
+use sui::test_scenario as ts;
 
-    #[test]
-    public fun test_create_and_deposit() {
-        let ctx = &mut tx_context::new_for_testing();
-        let pa = dummy_pa();
-        let pa_policy = vector::empty<u8>();
-        let (mut escrow_obj, _, _) = escrow::create_escrow(
-            vector::utf8(b"order1"),
-            @0x2,
-            @0x3,
-            100,
-            &pa,
-            pa_policy,
-            ctx
-        );
-        let coin_obj = coin::mint<SUI>(100, ctx);
-        escrow::deposit(&mut escrow_obj, @0x2, 100, coin_obj, ctx);
-        assert!(escrow_obj.status == 1, 100);
-    }
+const CUSTOMER: address = @0xA;
+const MERCHANT: address = @0xB;
+const ADMIN: address = @0xC;
 
-    #[test]
-    public fun test_release_and_refund() {
-        let ctx = &mut tx_context::new_for_testing();
-        let pa = dummy_pa();
-        let pa_policy = vector::empty<u8>();
-        let (mut escrow_obj, mut release_cap, mut refund_cap) = escrow::create_escrow(
-            vector::utf8(b"order2"),
-            @0x2,
-            @0x3,
-            50,
-            &pa,
-            pa_policy,
-            ctx
-        );
-        let coin_obj = coin::mint<SUI>(50, ctx);
-        escrow::deposit(&mut escrow_obj, @0x2, 50, coin_obj, ctx);
-        // Simulate time lock expiry
-        escrow_obj.deposit_at = option::some(0);
-        escrow::release(&mut escrow_obj, release_cap, &pa, ctx);
-        assert!(escrow_obj.status == 2, 101);
-
-        // Refund path (should not be possible after release, but test refund logic)
-        let (mut escrow_obj2, _, mut refund_cap2) = escrow::create_escrow(
-            vector::utf8(b"order3"),
-            @0x2,
-            @0x3,
-            75,
-            &pa,
-            pa_policy,
-            ctx
-        );
-        let coin_obj2 = coin::mint<SUI>(75, ctx);
-        escrow::deposit(&mut escrow_obj2, @0x2, 75, coin_obj2, ctx);
-        escrow::refund(&mut escrow_obj2, refund_cap2, &pa, ctx);
-        assert!(escrow_obj2.status == 3, 102);
-    }
-
-    #[test]
-    public fun test_dispute_and_emergency_withdraw() {
-        let ctx = &mut tx_context::new_for_testing();
-        let pa = dummy_pa();
-        let pa_policy = vector::empty<u8>();
-        let (mut escrow_obj, _, _) = escrow::create_escrow(
-            vector::utf8(b"order4"),
-            @0x2,
-            @0x3,
-            80,
-            &pa,
-            pa_policy,
-            ctx
-        );
-        let coin_obj = coin::mint<SUI>(80, ctx);
-        escrow::deposit(&mut escrow_obj, @0x2, 80, coin_obj, ctx);
-        let dispute_cap = escrow::mint_dispute_cap(&escrow_obj, ctx);
-        escrow::dispute(&mut escrow_obj, dispute_cap, ctx);
-        assert!(escrow_obj.status == 4, 200);
-
-        let dispute_cap2 = escrow::mint_dispute_cap(&escrow_obj, ctx);
-        escrow::emergency_withdraw(&mut escrow_obj, dispute_cap2, @0x3, ctx);
-        assert!(escrow_obj.status == 5, 201);
-    }
-
-    #[test]
-    public fun test_close() {
-        let ctx = &mut tx_context::new_for_testing();
-        let pa = dummy_pa();
-        let pa_policy = vector::empty<u8>();
-        let (mut escrow_obj, _, _) = escrow::create_escrow(
-            vector::utf8(b"order5"),
-            @0x2,
-            @0x3,
-            10,
-            &pa,
-            pa_policy,
-            ctx
-        );
-        escrow_obj.status = 2; // simulate released
-        escrow::close(escrow_obj, &pa, ctx);
-        // If no panic, close succeeded
-    }
+fun setup(): ts::Scenario {
+    let mut scenario = ts::begin(ADMIN);
+    escrow::init_for_testing(ts::ctx(&mut scenario));
+    ts::next_tx(&mut scenario, ADMIN);
+    escrow::create_test_pa(ts::ctx(&mut scenario));
+    scenario
 }
+
+#[test]
+public fun test_create_and_deposit() {
+    let mut scenario = setup();
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let (release_cap, refund_cap) = escrow::create_escrow<SUI>(
+        b"order1",
+        CUSTOMER,
+        MERCHANT,
+        100,
+        &pa,
+        vector[],
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    transfer::public_transfer(release_cap, CUSTOMER);
+    transfer::public_transfer(refund_cap, CUSTOMER);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let payment = coin::mint_for_testing<SUI>(100, ts::ctx(&mut scenario));
+    escrow::deposit(&mut escrow_obj, payment, &clk, ts::ctx(&mut scenario));
+    assert!(escrow::get_status(&escrow_obj) == 1, 100);
+    ts::return_shared(escrow_obj);
+    clock::destroy_for_testing(clk);
+
+    ts::end(scenario);
+}
+
+#[test]
+public fun test_release() {
+    let mut scenario = setup();
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let (release_cap, refund_cap) = escrow::create_escrow<SUI>(
+        b"order2",
+        CUSTOMER,
+        MERCHANT,
+        50,
+        &pa,
+        vector[],
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    transfer::public_transfer(release_cap, CUSTOMER);
+    transfer::public_transfer(refund_cap, CUSTOMER);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    escrow::deposit(
+        &mut escrow_obj,
+        coin::mint_for_testing<SUI>(50, ts::ctx(&mut scenario)),
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    ts::return_shared(escrow_obj);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let cap = ts::take_from_sender<ReleaseCap<SUI>>(&scenario);
+    escrow::release(&mut escrow_obj, cap, &pa, &clk, ts::ctx(&mut scenario));
+    assert!(escrow::get_status(&escrow_obj) == 2, 101);
+    ts::return_shared(escrow_obj);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::end(scenario);
+}
+
+#[test]
+public fun test_refund() {
+    let mut scenario = setup();
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let (release_cap, refund_cap) = escrow::create_escrow<SUI>(
+        b"order3",
+        CUSTOMER,
+        MERCHANT,
+        75,
+        &pa,
+        vector[],
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    transfer::public_transfer(release_cap, CUSTOMER);
+    transfer::public_transfer(refund_cap, CUSTOMER);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    escrow::deposit(
+        &mut escrow_obj,
+        coin::mint_for_testing<SUI>(75, ts::ctx(&mut scenario)),
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    ts::return_shared(escrow_obj);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let cap = ts::take_from_sender<RefundCap<SUI>>(&scenario);
+    escrow::refund(&mut escrow_obj, cap, &pa, &clk, ts::ctx(&mut scenario));
+    assert!(escrow::get_status(&escrow_obj) == 3, 102);
+    ts::return_shared(escrow_obj);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::end(scenario);
+}
+
+#[test]
+public fun test_dispute_and_emergency_withdraw() {
+    let mut scenario = setup();
+
+    ts::next_tx(&mut scenario, ADMIN);
+    let pa = ts::take_shared<ProgrammableAccount>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    let (release_cap, refund_cap) = escrow::create_escrow<SUI>(
+        b"order4",
+        CUSTOMER,
+        MERCHANT,
+        80,
+        &pa,
+        vector[],
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    transfer::public_transfer(release_cap, ADMIN);
+    transfer::public_transfer(refund_cap, ADMIN);
+    ts::return_shared(pa);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, CUSTOMER);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    escrow::deposit(
+        &mut escrow_obj,
+        coin::mint_for_testing<SUI>(80, ts::ctx(&mut scenario)),
+        &clk,
+        ts::ctx(&mut scenario),
+    );
+    ts::return_shared(escrow_obj);
+    clock::destroy_for_testing(clk);
+
+    ts::next_tx(&mut scenario, ADMIN);
+    let mut escrow_obj = ts::take_shared<OrderEscrow<SUI>>(&scenario);
+    let admin_cap = ts::take_from_sender<AdminCap>(&scenario);
+    let clk = clock::create_for_testing(ts::ctx(&mut scenario));
+    escrow::dispute(&admin_cap, &mut escrow_obj, &clk, ts::ctx(&mut scenario));
+    assert!(escrow::get_status(&escrow_obj) == 4, 200);
+    escrow::emergency_withdraw(&admin_cap, &mut escrow_obj, MERCHANT, &clk, ts::ctx(&mut scenario));
+    assert!(escrow::get_status(&escrow_obj) == 5, 201);
+    ts::return_shared(escrow_obj);
+    ts::return_to_sender(&scenario, admin_cap);
+    clock::destroy_for_testing(clk);
+
+    ts::end(scenario);
 }
