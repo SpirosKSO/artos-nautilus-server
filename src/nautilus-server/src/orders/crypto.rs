@@ -19,13 +19,17 @@ pub fn ensure_initialized() -> Result<(), &'static str> {
 }
 
 pub fn public_key_base64() -> String {
-    let sk = SIGNING_KEY.get().expect("crypto::ensure_initialized must be called first");
+    let sk = SIGNING_KEY
+        .get()
+        .expect("crypto::ensure_initialized must be called first");
     let vk = sk.verifying_key();
     B64.encode(vk.to_bytes())
 }
 
 pub fn sign(message: &[u8]) -> [u8; 64] {
-    let sk = SIGNING_KEY.get().expect("crypto::ensure_initialized must be called first");
+    let sk = SIGNING_KEY
+        .get()
+        .expect("crypto::ensure_initialized must be called first");
     let sig = sk.sign(message);
     info!("🔏 Signed {} byte message", message.len());
     sig.to_bytes()

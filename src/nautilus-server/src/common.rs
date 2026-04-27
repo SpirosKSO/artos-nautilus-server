@@ -168,7 +168,6 @@ pub async fn health_check(
         Ok(yaml_content) => {
             match serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
                 Ok(yaml_value) => {
-               
                     let mut status_map = HashMap::new();
 
                     if let Some(endpoints) =
@@ -208,7 +207,6 @@ pub async fn health_check(
                                     }
                                 };
 
-                                 
                                 status_map.insert(endpoint_str.to_string(), is_reachable);
                                 info!(
                                     "Checked endpoint {}: reachable = {}",
@@ -227,14 +225,12 @@ pub async fn health_check(
             }
         }
         Err(e) => {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                            info!("Failed to read allowed_endpoints.yaml: {}", e);
-                        }
-       
+            if e.kind() != std::io::ErrorKind::NotFound {
+                info!("Failed to read allowed_endpoints.yaml: {}", e);
+            }
+
             HashMap::new()
         }
-          
-
     };
 
     Ok(Json(HealthCheckResponse {
