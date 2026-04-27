@@ -8,4 +8,3 @@ edition = "2024"
 artos = "0x0"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", rev = "be94dd3", subdir = "crates/sui-framework/packages/sui-framework" }

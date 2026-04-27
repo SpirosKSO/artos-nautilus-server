@@ -35,6 +35,16 @@ ignore = [
     # rustls-pemfile is unmaintained; used transitively by reqwest v0.11,
     # not a direct dependency - will be resolved with reqwest upgrade
     "RUSTSEC-2025-0134",
+    # bincode unmaintained - transitive dep via fastcrypto, no upgrade available
+    "RUSTSEC-2025-0141",
+    # bytes integer overflow - patched via cargo update below
+    "RUSTSEC-2026-0007",
+    # derivative unmaintained - transitive dep via fastcrypto/ark-ec
+    "RUSTSEC-2024-0388",
+    # paste unmaintained - transitive dep via fastcrypto/ark-ff
+    "RUSTSEC-2024-0436",
+    # rand unsoundness - patched via cargo update below
+    "RUSTSEC-2026-0097",
 ]
 
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
@@ -68,6 +78,8 @@ allow = [
     "Unicode-3.0",
     #"Apache-2.0 WITH LLVM-exception",
     "Zlib",
+    # CC0-1.0 used by bitcoin-private, bitcoin_hashes, secp256k1 via fastcrypto
+    "CC0-1.0",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
