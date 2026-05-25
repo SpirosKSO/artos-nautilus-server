@@ -188,6 +188,98 @@ public fun create_escrow<T>(
     (release_cap, refund_cap)
 }
 
+// ============================================
+//  SINGLE-PTB ESCROW (agent / UCP path)
+// ============================================
+//
+// `create_and_fund_escrow` lets the BUYER atomically create an already-funded
+// escrow in a single signed PTB:
+//
+//   1. Buyer's wallet selects a `Coin<T>` and passes it in.
+//   2. We consume it directly into the escrow's `Balance<T>`.
+//   3. Status is `1` (funded) from inception — no separate `deposit` call.
+//   4. The escrow object and both capabilities are RETURNED to the caller —
+//      we do NOT share or transfer inside this function, per Sui composability
+//      best practice. The PTB calls `share_escrow` + `transferObjects`.
+//
+// `tx_context::sender(ctx)` is bound as `customer` so spoofing is impossible —
+// the buyer's signature *is* the identity proof.
+public fun create_and_fund_escrow<T>(
+    payment: Coin<T>,
+    order_id: vector<u8>,
+    merchant: address,
+    pa: &ProgrammableAccount,
+    pa_policy: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): (OrderEscrow<T>, ReleaseCap<T>, RefundCap<T>) {
+    let customer = tx_context::sender(ctx);
+    let amount = coin::value(&payment);
+    assert!(amount > 0, 60); // Must fund with non-zero amount
+
+    let now = clock::timestamp_ms(clock);
+    let id = object::new(ctx);
+    let escrow_id = object::uid_to_inner(&id);
+    let pa_id = object::uid_to_inner(&pa.id);
+    let coin_type = type_name::get<T>();
+
+    let release_cap = ReleaseCap<T> {
+        id: object::new(ctx),
+        escrow_id,
+        pa_id,
+    };
+    let refund_cap = RefundCap<T> {
+        id: object::new(ctx),
+        escrow_id,
+        pa_id,
+    };
+
+    event::emit(EventCreated {
+        order_id,
+        customer,
+        merchant,
+        amount,
+        coin_type,
+        timestamp: now,
+    });
+
+    let balance = coin::into_balance(payment);
+
+    event::emit(EventDeposited {
+        order_id,
+        amount,
+        coin_type,
+        timestamp: now,
+        payer: customer,
+    });
+
+    let escrow = OrderEscrow<T> {
+        id,
+        order_id,
+        customer,
+        merchant,
+        amount,
+        status: 1, // funded immediately
+        created_at: now,
+        deposit_at: option::some(now),
+        pa_id,
+        funds: option::some(balance),
+        pa_policy,
+        coin_type,
+    };
+
+    (escrow, release_cap, refund_cap)
+}
+
+/// Share an `OrderEscrow<T>` produced by `create_and_fund_escrow`.
+/// Separated from creation so the PTB can transfer caps before sharing.
+/// Lint allows: the object is freshly created in the same PTB by
+/// `create_and_fund_escrow`; sharing it here is the intended pattern.
+#[allow(lint(share_owned, custom_state_change))]
+public fun share_escrow<T>(escrow: OrderEscrow<T>) {
+    transfer::share_object(escrow);
+}
+
 /// Deposit any coin type
 public fun deposit<T>(
     escrow: &mut OrderEscrow<T>,
