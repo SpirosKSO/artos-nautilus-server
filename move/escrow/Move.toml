@@ -1,7 +1,7 @@
 [package]
 name = "artos_escrow"
 version = "0.0.1"
-published-at = "0x0"
+published-at = "0x959ca93058c35b341af94aa13759b14cbda4d4bc124577810f8d718b801cbb08"
 edition = "2024"
 
 [addresses]
